@@ -10,7 +10,7 @@ authors = [
 dependencies = ["pandas"]
 
 [project.optional-dependencies]
-dev = ["pytest", "pylint", "pytest-cov", "toml"]
+dev = ["pytest", "pylint", "pytest-cov", "toml", "setuptools"]
 
 [build-system]
 requires = ["setuptools>=61.0"]

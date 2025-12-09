@@ -1,5 +1,7 @@
 # FAAST Advance Foundations
 
+[![CI Pipeline](https://github.com/ana3A/faast-foundations-ana3a/actions/workflows/ci.yml/badge.svg?branch=ci)](https://github.com/ana3A/faast-foundations-ana3a/actions/workflows/ci.yml)
+
 ![FAAST logo](/images/FAAST_preto.png)
 
 Welcome to the FAAST Advance Foundations 🎉

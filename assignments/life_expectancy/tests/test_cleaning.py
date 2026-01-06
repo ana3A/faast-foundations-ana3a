@@ -2,7 +2,6 @@
 import tempfile
 from pathlib import Path
 import pandas as pd
-import pytest
 
 from life_expectancy.cleaning import (
     load_data,

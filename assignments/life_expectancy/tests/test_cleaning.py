@@ -1,7 +1,9 @@
 """Tests for the cleaning module"""
 import tempfile
 from pathlib import Path
+from unittest.mock import patch, MagicMock
 import pandas as pd
+import pytest
 
 from life_expectancy.cleaning import (
     load_data,
@@ -9,30 +11,25 @@ from life_expectancy.cleaning import (
     save_data,
     clean_data_pipeline
 )
-from . import OUTPUT_DIR, PACKAGE_DIR
+from . import OUTPUT_DIR, PACKAGE_DIR, FIXTURES_DIR
 
 
-def test_clean_data(pt_life_expectancy_expected):
-    """Run the `clean_data_pipeline` function and compare the output to the expected output"""
-    clean_data_pipeline()
-    pt_life_expectancy_actual = pd.read_csv(
-        OUTPUT_DIR / "pt_life_expectancy.csv"
-    )
+def test_clean_data(pt_life_expectancy_expected, eu_life_expectancy_raw):
+    """Run the clean_data function with fixture data and compare to expected output"""
+    # Use the fixture data instead of loading from actual file
+    cleaned_data = clean_data(eu_life_expectancy_raw, region="PT")
+    
     pd.testing.assert_frame_equal(
-        pt_life_expectancy_actual, pt_life_expectancy_expected
+        cleaned_data.reset_index(drop=True), pt_life_expectancy_expected
     )
 
 
-def test_clean_data_with_custom_region(eu_life_expectancy_expected):
-    """Test clean_data_pipeline with a non-default region (France)"""
+def test_clean_data_with_custom_region(eu_life_expectancy_expected, eu_life_expectancy_raw):
+    """Test clean_data with a non-default region (France)"""
     region = "FR"
-    output_file = OUTPUT_DIR / f"{region.lower()}_life_expectancy.csv"
     
-    # Run pipeline with custom region
-    clean_data_pipeline(region=region)
-    
-    # Load the actual output
-    actual_data = pd.read_csv(output_file)
+    # Use fixture data instead of loading from actual file
+    actual_data = clean_data(eu_life_expectancy_raw, region=region)
     
     # Filter expected data for the region
     expected_data = eu_life_expectancy_expected[
@@ -40,17 +37,14 @@ def test_clean_data_with_custom_region(eu_life_expectancy_expected):
     ].reset_index(drop=True)
     
     # Compare
-    pd.testing.assert_frame_equal(actual_data, expected_data)
-    
-    # Clean up
-    output_file.unlink(missing_ok=True)
+    pd.testing.assert_frame_equal(actual_data.reset_index(drop=True), expected_data)
 
 
 # Unit tests for individual functions
 
 def test_load_data():
     """Test that load_data correctly loads the TSV file"""
-    input_file = PACKAGE_DIR / "data" / "eu_life_expectancy_raw.tsv"
+    input_file = FIXTURES_DIR / "eu_life_expectancy_raw.tsv"
     df = load_data(input_file)
     
     # Check that data was loaded
@@ -137,7 +131,7 @@ def test_clean_data_handles_missing_values():
 
 
 def test_save_data():
-    """Test that save_data correctly writes a CSV file"""
+    """Test that save_data correctly calls to_csv with the right parameters"""
     # Create a sample DataFrame
     df = pd.DataFrame({
         "unit": ["YR", "YR"],
@@ -148,17 +142,16 @@ def test_save_data():
         "value": [21.5, 18.2]
     })
     
-    # Use a temporary file
+    # Use tempfile to create a real temporary location
     with tempfile.TemporaryDirectory() as tmpdir:
         output_file = Path(tmpdir) / "test_output.csv"
-        save_data(df, output_file)
         
-        # Check that file was created
-        assert output_file.exists()
-        
-        # Read it back and verify
-        loaded_df = pd.read_csv(output_file)
-        pd.testing.assert_frame_equal(df, loaded_df)
+        # Mock the to_csv method to avoid writing files
+        with patch.object(pd.DataFrame, 'to_csv') as mock_to_csv:
+            save_data(df, output_file)
+            
+            # Assert that to_csv was called with correct parameters
+            mock_to_csv.assert_called_once_with(output_file, index=False)
 
 
 def test_save_data_creates_directories():
@@ -179,32 +172,31 @@ def test_save_data_creates_directories():
         # Directory should not exist yet
         assert not output_file.parent.exists()
         
-        # save_data should create it
-        save_data(df, output_file)
+        # Mock to_csv to avoid actually writing
+        with patch.object(pd.DataFrame, 'to_csv'):
+            save_data(df, output_file)
         
-        # Check that file and directories were created
-        assert output_file.exists()
+        # Check that directories were created (even though file wasn't written)
         assert output_file.parent.exists()
-        
-        # Verify content
-        loaded_df = pd.read_csv(output_file)
-        pd.testing.assert_frame_equal(df, loaded_df)
 
 
 def test_save_data_no_index():
-    """Test that save_data doesn't write the DataFrame index"""
+    """Test that save_data calls to_csv with index=False"""
     df = pd.DataFrame({
         "unit": ["YR"],
         "value": [21.5]
     })
     
+    # Use tempfile to create a real temporary location
     with tempfile.TemporaryDirectory() as tmpdir:
         output_file = Path(tmpdir) / "test_output.csv"
-        save_data(df, output_file)
         
-        # Read the file as text and check it doesn't start with index numbers
-        with open(output_file, 'r', encoding='utf-8') as f:
-            first_line = f.readline().strip()
-            # First line should be column names, not numbers
-            assert first_line.startswith("unit")
-            assert not first_line[0].isdigit()
+        # Mock to_csv and verify it's called with index=False
+        with patch.object(pd.DataFrame, 'to_csv') as mock_to_csv:
+            save_data(df, output_file)
+            
+            # Check that index=False was passed
+            mock_to_csv.assert_called_once()
+            call_kwargs = mock_to_csv.call_args[1]
+            assert 'index' in call_kwargs
+            assert call_kwargs['index'] is False

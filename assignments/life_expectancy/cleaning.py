@@ -74,12 +74,15 @@ def save_data(df: pd.DataFrame, output_file: Path) -> None:
     df.to_csv(output_file, index=False)
 
 
-def clean_data_pipeline(region: str = "PT") -> None:
+def clean_data_pipeline(region: str = "PT") -> pd.DataFrame:
     """
     Execute the complete data cleaning pipeline.
 
     Args:
         region: The region code to filter (default: "PT" for Portugal)
+        
+    Returns:
+        Cleaned DataFrame
     """
     # Define paths
     data_dir = Path(__file__).parent / "data"
@@ -90,6 +93,8 @@ def clean_data_pipeline(region: str = "PT") -> None:
     raw_data = load_data(input_file)
     cleaned_data = clean_data(raw_data, region)
     save_data(cleaned_data, output_file)
+    
+    return cleaned_data
 
 
 if __name__ == "__main__":  # pragma: no cover

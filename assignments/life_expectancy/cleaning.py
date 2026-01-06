@@ -49,9 +49,9 @@ def clean_data(df: pd.DataFrame, region: str = "PT") -> pd.DataFrame:
     df["year"] = df["year"].str.strip().astype(int)
 
     # 4. Clean value column
-    # Replace ":" with NaN, remove spaces and trailing 'e', convert to float, and drop NaNs
+    # Replace ":" with NaN, remove spaces and trailing flags (b, e, p, etc.), convert to float
     df["value"] = df["value"].str.strip().replace(":", pd.NA)
-    df["value"] = df["value"].str.replace(r"\s*e$", "", regex=True)
+    df["value"] = df["value"].str.replace(r"\s*[a-z]+$", "", regex=True)
     df["value"] = pd.to_numeric(df["value"], errors="coerce")
     df = df.dropna(subset=["value"])
 
@@ -82,7 +82,7 @@ def clean_data_pipeline(region: str = "PT") -> None:
     # Define paths
     data_dir = Path(__file__).parent / "data"
     input_file = data_dir / "eu_life_expectancy_raw.tsv"
-    output_file = data_dir / "pt_life_expectancy.csv"
+    output_file = data_dir / f"{region.lower()}_life_expectancy.csv"
 
     # Execute the pipeline
     raw_data = load_data(input_file)

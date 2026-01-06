@@ -69,6 +69,8 @@ def save_data(df: pd.DataFrame, output_file: Path) -> None:
         df: Cleaned DataFrame to save
         output_file: Path to the output CSV file
     """
+    # Create parent directories if they don't exist
+    output_file.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(output_file, index=False)
 
 

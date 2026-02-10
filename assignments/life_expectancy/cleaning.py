@@ -3,6 +3,8 @@ import argparse
 from pathlib import Path
 import pandas as pd
 
+from life_expectancy.regions import Region
+
 
 def load_data(input_file: Path) -> pd.DataFrame:
     """
@@ -17,7 +19,7 @@ def load_data(input_file: Path) -> pd.DataFrame:
     return pd.read_csv(input_file, sep="\t")
 
 
-def clean_data(df: pd.DataFrame, region: str = "PT") -> pd.DataFrame:
+def clean_data(df: pd.DataFrame, region: Region = Region.PT) -> pd.DataFrame:
     """
     Clean and process life expectancy data.
 
@@ -26,7 +28,7 @@ def clean_data(df: pd.DataFrame, region: str = "PT") -> pd.DataFrame:
 
     Args:
         df: Raw DataFrame from the TSV file
-        region: The region code to filter (default: "PT" for Portugal)
+        region: The region to filter (default: Region.PT for Portugal)
 
     Returns:
         Cleaned DataFrame ready to be saved
@@ -56,7 +58,7 @@ def clean_data(df: pd.DataFrame, region: str = "PT") -> pd.DataFrame:
     df = df.dropna(subset=["value"])
 
     # 5. Filter by region
-    df = df[df["region"] == region]
+    df = df[df["region"] == region.value]
 
     return df
 
@@ -74,12 +76,12 @@ def save_data(df: pd.DataFrame, output_file: Path) -> None:
     df.to_csv(output_file, index=False)
 
 
-def clean_data_pipeline(region: str = "PT") -> pd.DataFrame:
+def clean_data_pipeline(region: Region = Region.PT) -> pd.DataFrame:
     """
     Execute the complete data cleaning pipeline.
 
     Args:
-        region: The region code to filter (default: "PT" for Portugal)
+        region: The region to filter (default: Region.PT for Portugal)
         
     Returns:
         Cleaned DataFrame
@@ -87,13 +89,13 @@ def clean_data_pipeline(region: str = "PT") -> pd.DataFrame:
     # Define paths
     data_dir = Path(__file__).parent / "data"
     input_file = data_dir / "eu_life_expectancy_raw.tsv"
-    output_file = data_dir / f"{region.lower()}_life_expectancy.csv"
+    output_file = data_dir / f"{region.value.lower()}_life_expectancy.csv"
 
     # Execute the pipeline
     raw_data = load_data(input_file)
     cleaned_data = clean_data(raw_data, region)
     save_data(cleaned_data, output_file)
-    
+
     return cleaned_data
 
 
@@ -106,4 +108,4 @@ if __name__ == "__main__":  # pragma: no cover
         help="Country code to filter (default: PT)"
     )
     args = parser.parse_args()
-    clean_data_pipeline(region=args.country)
+    clean_data_pipeline(region=Region[args.country])

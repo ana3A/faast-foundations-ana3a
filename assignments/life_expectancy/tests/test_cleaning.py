@@ -11,13 +11,14 @@ from life_expectancy.cleaning import (
     save_data,
     clean_data_pipeline
 )
+from life_expectancy.regions import Region
 from . import OUTPUT_DIR, PACKAGE_DIR, FIXTURES_DIR
 
 
 def test_clean_data(pt_life_expectancy_expected, eu_life_expectancy_raw):
     """Run the clean_data function with fixture data and compare to expected output"""
     # Use the fixture data instead of loading from actual file
-    cleaned_data = clean_data(eu_life_expectancy_raw, region="PT")
+    cleaned_data = clean_data(eu_life_expectancy_raw, region=Region.PT)
     
     pd.testing.assert_frame_equal(
         cleaned_data.reset_index(drop=True), pt_life_expectancy_expected
@@ -26,14 +27,14 @@ def test_clean_data(pt_life_expectancy_expected, eu_life_expectancy_raw):
 
 def test_clean_data_with_custom_region(eu_life_expectancy_expected, eu_life_expectancy_raw):
     """Test clean_data with a non-default region (France)"""
-    region = "FR"
+    region = Region.FR
     
     # Use fixture data instead of loading from actual file
     actual_data = clean_data(eu_life_expectancy_raw, region=region)
     
     # Filter expected data for the region
     expected_data = eu_life_expectancy_expected[
-        eu_life_expectancy_expected["region"] == region
+        eu_life_expectancy_expected["region"] == region.value
     ].reset_index(drop=True)
     
     # Compare
@@ -69,7 +70,7 @@ def test_clean_data_structure():
         "2021 ": ["21.7", "18.4"]
     })
     
-    cleaned = clean_data(raw_df, region="PT")
+    cleaned = clean_data(raw_df, region=Region.PT)
     
     # Check expected columns
     expected_cols = ["unit", "sex", "age", "region", "year", "value"]
@@ -93,7 +94,7 @@ def test_clean_data_removes_flags():
         "2020": ["21.5 e", "21.6 b", "21.7 p", "21.8 bep"]
     })
     
-    cleaned = clean_data(raw_df, region="FR")
+    cleaned = clean_data(raw_df, region=Region.FR)
     
     # Check that values are clean floats
     expected_values = [21.5, 21.6, 21.7, 21.8]
@@ -107,7 +108,7 @@ def test_clean_data_filters_region():
         "2020": ["21.5", "23.4", "20.8"]
     })
     
-    cleaned = clean_data(raw_df, region="FR")
+    cleaned = clean_data(raw_df, region=Region.FR)
     
     # Should only have French data
     assert len(cleaned) == 1
@@ -122,7 +123,7 @@ def test_clean_data_handles_missing_values():
         "2020": ["21.5", ":", "20.0"]
     })
     
-    cleaned = clean_data(raw_df, region="PT")
+    cleaned = clean_data(raw_df, region=Region.PT)
     
     # Should only have 2 rows (the ':' should be filtered out)
     assert len(cleaned) == 2

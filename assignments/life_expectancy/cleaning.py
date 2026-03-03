@@ -1,104 +1,108 @@
 """Module for cleaning life expectancy data"""
 import argparse
 from pathlib import Path
+
 import pandas as pd
 
-
-def load_data(input_file: Path) -> pd.DataFrame:
-    """
-    Load the raw life expectancy data from a TSV file.
-
-    Args:
-        input_file: Path to the input TSV file
-
-    Returns:
-        DataFrame with the raw data
-    """
-    return pd.read_csv(input_file, sep="\t")
+from life_expectancy.loaders import AbstractLoader, TSVLoader
+from life_expectancy.regions import Region
 
 
-def clean_data(df: pd.DataFrame, region: str = "PT") -> pd.DataFrame:
-    """
-    Clean and process life expectancy data.
+def load_data(file_path: Path, loader: AbstractLoader | None = None) -> pd.DataFrame:
+    """Load life expectancy data using a loader strategy.
 
-    This function unpivots the data to long format, cleans the data types,
-    and filters by region.
+    When no *loader* is provided the default :class:`~life_expectancy.loaders.TSVLoader`
+    is used, preserving backward-compatible behaviour with the original TSV
+    data source.
 
     Args:
-        df: Raw DataFrame from the TSV file
-        region: The region code to filter (default: "PT" for Portugal)
+        file_path: Path to the source data file.
+        loader: A concrete :class:`~life_expectancy.loaders.AbstractLoader`
+            instance.  Defaults to ``TSVLoader()``.
 
     Returns:
-        Cleaned DataFrame ready to be saved
+        Long-format DataFrame with columns
+        ``unit``, ``sex``, ``age``, ``region``, ``year``, ``value``.
     """
-    # 1. Split the first column into separate columns
-    # The first column format is: unit,sex,age,geo\time
-    df[["unit", "sex", "age", "region"]] = df.iloc[:, 0].str.split(",", expand=True)
+    if loader is None:
+        loader = TSVLoader()
+    return loader.load_data(file_path)
 
-    # Drop the original combined column
-    df = df.drop(df.columns[0], axis=1)
 
-    # 2. Unpivot to long format
-    df = df.melt(
-        id_vars=["unit", "sex", "age", "region"],
-        var_name="year",
-        value_name="value"
-    )
+def clean_data(df: pd.DataFrame, region: Region = Region.PT) -> pd.DataFrame:
+    """Filter a long-format life expectancy DataFrame by region.
 
-    # 3. Clean year column - remove extra spaces and convert to int
-    df["year"] = df["year"].str.strip().astype(int)
+    The *df* argument must already be in the standardised long format produced
+    by any :class:`~life_expectancy.loaders.AbstractLoader` implementation
+    (columns: ``unit``, ``sex``, ``age``, ``region``, ``year``, ``value``).
 
-    # 4. Clean value column
-    # Replace ":" with NaN, remove spaces and trailing flags (b, e, p, etc.), convert to float
-    df["value"] = df["value"].str.strip().replace(":", pd.NA)
-    df["value"] = df["value"].str.replace(r"\s*[a-z]+$", "", regex=True)
-    df["value"] = pd.to_numeric(df["value"], errors="coerce")
-    df = df.dropna(subset=["value"])
+    Args:
+        df: Long-format DataFrame returned by :func:`load_data`.
+        region: The target region to keep (default: :attr:`Region.PT`).
 
-    # 5. Filter by region
-    df = df[df["region"] == region]
-
-    return df
+    Returns:
+        Filtered DataFrame containing only rows for *region*.
+    """
+    return df[df["region"] == region.value].reset_index(drop=True)
 
 
 def save_data(df: pd.DataFrame, output_file: Path) -> None:
-    """
-    Save the cleaned data to a CSV file.
+    """Save the cleaned data to a CSV file.
 
     Args:
-        df: Cleaned DataFrame to save
-        output_file: Path to the output CSV file
+        df: Cleaned DataFrame to save.
+        output_file: Destination path for the output CSV.
     """
-    # Create parent directories if they don't exist
     output_file.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(output_file, index=False)
 
 
-def clean_data_pipeline(region: str = "PT") -> None:
-    """
-    Execute the complete data cleaning pipeline.
+def clean_data_pipeline(
+    region: Region = Region.PT,
+    loader: AbstractLoader | None = None,
+) -> pd.DataFrame:
+    """Execute the complete data cleaning pipeline.
+
+    Loads data from the ``life_expectancy/data`` directory using the
+    provided *loader* strategy (defaulting to :class:`~life_expectancy.loaders.TSVLoader`),
+    filters by *region*, saves the result to a CSV, and returns the cleaned
+    DataFrame.
 
     Args:
-        region: The region code to filter (default: "PT" for Portugal)
-    """
-    # Define paths
-    data_dir = Path(__file__).parent / "data"
-    input_file = data_dir / "eu_life_expectancy_raw.tsv"
-    output_file = data_dir / f"{region.lower()}_life_expectancy.csv"
+        region: The region to filter (default: :attr:`Region.PT`).
+        loader: Loader strategy to use.  Pass a
+            :class:`~life_expectancy.loaders.JSONLoader` to read from the
+            zipped JSON file instead of the default TSV.
 
-    # Execute the pipeline
-    raw_data = load_data(input_file)
+    Returns:
+        Cleaned DataFrame.
+    """
+    data_dir = Path(__file__).parent / "data"
+
+    if loader is None or isinstance(loader, TSVLoader):
+        loader = loader or TSVLoader()
+        input_file = data_dir / "eu_life_expectancy_raw.tsv"
+    else:
+        # Any other loader (e.g. JSONLoader) reads from the zipped JSON
+        input_file = data_dir / "eu_life_expectancy_raw.zip"
+
+    output_file = data_dir / f"{region.value.lower()}_life_expectancy.csv"
+
+    raw_data = load_data(input_file, loader)
     cleaned_data = clean_data(raw_data, region)
     save_data(cleaned_data, output_file)
+
+    return cleaned_data
 
 
 if __name__ == "__main__":  # pragma: no cover
     parser = argparse.ArgumentParser(description="Clean life expectancy data")
     parser.add_argument(
-        "--country",
+        "--region",
         type=str,
         default="PT",
-        help="Country code to filter (default: PT)"
+        help="Region code to filter (default: PT)",
     )
     args = parser.parse_args()
-    clean_data_pipeline(region=args.country)
+    region_enum = Region[args.region.upper()]
+    clean_data_pipeline(region=region_enum)
